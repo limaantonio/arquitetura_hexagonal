@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/limaantonio/go-hexagonal/adapters/db"
+	"github.com/limaantonio/go-hexagonal/application"
 	"github.com/stretchr/testify/require"
 )
 
 var Db *sql.DB
 
-func setup() {
+func setUp() {
 	Db, _ = sql.Open("sqlite3", ":memory:")
 	createTable(Db)
 	createProduct(Db)
@@ -19,13 +20,12 @@ func setup() {
 
 func createTable(db *sql.DB) {
 	table := `CREATE TABLE products (
-		id text ,
-		name text ,
-		price float ,
-		status text 
-	);`
-
-	stmt, err := Db.Prepare(table)
+			"id" string,
+			"name" string,
+			"price" float,
+			"status" string
+			);`
+	stmt, err := db.Prepare(table)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -33,24 +33,46 @@ func createTable(db *sql.DB) {
 }
 
 func createProduct(db *sql.DB) {
-	product := `INSERT INTO products (id, name, price, status) VALUES (?, ?, ?, ?);`
-
-	stmt, err := Db.Prepare(product)
+	insert := `insert into products values("abc","Product Test",0,"disabled")`
+	stmt, err := db.Prepare(insert)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	stmt.Exec("1", "product 1", 1.0, "disabled")
+	stmt.Exec()
 }
 
 func TestProductDb_Get(t *testing.T) {
-	setup()
-	//defer é um statment que executa uma função quando a função que o contém termina
+	setUp()
 	defer Db.Close()
 	productDb := db.NewProductDb(Db)
-	product, err := productDb.Get("1")
+	product, err := productDb.Get("abc")
 	require.Nil(t, err)
-	require.Equal(t, "product 1", product.GetName())
-	require.Equal(t, 1.0, product.GetPrice())
+	require.Equal(t, "Product Test", product.GetName())
+	require.Equal(t, 0.0, product.GetPrice())
 	require.Equal(t, "disabled", product.GetStatus())
+}
+
+func TestProductDB_Save(t *testing.T) {
+	setUp()
+	defer Db.Close()
+	productDb := db.NewProductDb(Db)
+
+	product := application.NewProduct()
+	product.Name = "Product Test"
+	product.Price = 25
+
+	productResult, err := productDb.Save(product)
+	require.Nil(t, err)
+	require.Equal(t, product.Name, productResult.GetName())
+	require.Equal(t, product.Price, productResult.GetPrice())
+	require.Equal(t, product.Status, productResult.GetStatus())
+
+	product.Status = "enabled"
+
+	productResult, err = productDb.Save(product)
+	require.Nil(t, err)
+	require.Equal(t, product.Name, productResult.GetName())
+	require.Equal(t, product.Price, productResult.GetPrice())
+	require.Equal(t, product.Status, productResult.GetStatus())
 
 }
